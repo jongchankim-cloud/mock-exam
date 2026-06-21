@@ -83,6 +83,24 @@
   }
   .qbtn:hover{transform:translateY(-1px);color:var(--accent);border-color:var(--accent)}
   .qbtn .tag{display:block;font-family:"IBM Plex Sans KR";font-size:9px;font-weight:500;color:var(--ink-soft);margin-top:2px}
+  /* 즐겨찾기 표시 */
+  .qbtn{position:relative}
+  .qbtn.faved{border-color:var(--accent)}
+  .qbtn .qstar{position:absolute;top:4px;right:6px;font-size:11px;color:var(--accent)}
+  .fav-btn{margin-left:auto;background:none;border:none;cursor:pointer;font-size:24px;line-height:1;
+    color:var(--rule);padding:0 2px;transition:transform .1s}
+  .fav-btn:hover{transform:scale(1.15)}
+  .fav-btn.on{color:#e6a817}
+  .fav-collect-btn{width:100%;margin:6px 0 14px;padding:12px;border:1px solid var(--rule);border-radius:10px;
+    background:var(--card);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);box-shadow:var(--shadow)}
+  .fav-collect-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .fav-entry{width:100%;margin-bottom:14px;padding:14px 16px;border:1px solid var(--rule);border-radius:12px;
+    background:linear-gradient(180deg,#fffdf8,#fdf6ee);cursor:pointer;font-family:inherit;font-size:14.5px;font-weight:700;
+    color:var(--ink);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between}
+  .fav-entry:hover{border-color:var(--accent)}
+  .fav-entry .chev{color:var(--ink-soft);font-size:20px}
+  .fav-group{margin-bottom:18px}
+  .fav-group-title{font-size:13px;font-weight:700;color:var(--accent);margin:0 2px 8px}
 
   /* ---- section label ---- */
   .sect-label{
