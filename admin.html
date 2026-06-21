@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>모의고사 관리자</title>
+<style>
+  :root{
+    --ink:#1c1a17;--ink-soft:#5c574e;--paper:#f6f3ec;--card:#fffdf8;
+    --line:#e3ddd0;--rule:#cfc7b6;--accent:#9a2a2a;--ok:#2f6b4f;--radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans KR",system-ui,sans-serif;line-height:1.6}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 18px 80px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--ink-soft);font-size:13px;margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+  label{display:block;font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;font-weight:600}
+  input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;
+    background:#fffefb;font-family:inherit;font-size:14px;margin-bottom:12px}
+  textarea{min-height:90px;resize:vertical}
+  button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:none;border-radius:8px;padding:10px 16px}
+  .btn-primary{background:var(--ink);color:#fff}
+  .btn-primary:hover{background:#000}
+  .btn-accent{background:var(--accent);color:#fff}
+  .btn-ghost{background:none;border:1px solid var(--rule);color:var(--ink)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .msg{font-size:13px;margin-top:8px;min-height:18px}
+  .msg.err{color:var(--accent)}
+  .msg.ok{color:var(--ok)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
+  th{background:#f0ebe0;font-size:12px}
+  td textarea{min-height:60px;margin:0}
+  td input{margin:0}
+  .small{font-size:12px;color:var(--ink-soft)}
+  .hidden{display:none}
+  .tag{display:inline-block;font-size:11px;background:#f0e0db;color:var(--accent);padding:2px 8px;border-radius:999px}
+  details{margin-top:8px}
+  summary{cursor:pointer;font-size:13px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 로그인 -->
+  <section id="login" class="card" style="max-width:380px;margin:60px auto">
+    <h1>관리자 로그인</h1>
+    <p class="sub">관리자 비밀번호를 입력하세요.</p>
+    <input id="pass" type="password" placeholder="비밀번호" autocomplete="off">
+    <button class="btn-primary" id="btn-login" style="width:100%">로그인</button>
+    <div class="msg" id="login-msg"></div>
+  </section>
+
+  <!-- 관리자 본문 -->
+  <main id="admin" class="hidden">
+    <h1>모의고사 관리자</h1>
+    <p class="sub">PDF를 올려 자동 분석한 뒤, 검토·수정하고 저장하세요.</p>
+
+    <!-- 회차 정보 -->
+    <section class="card">
+      <div class="row">
+        <div style="flex:1;min-width:120px"><label>회차 번호</label><input id="round_no" type="number" value="2"></div>
+        <div style="flex:3;min-width:200px"><label>제목</label><input id="title" type="text" placeholder="예: 2025학년도 6월 모의고사"></div>
+        <div style="flex:1;min-width:100px"><label>과목</label><input id="subject" type="text" value="English"></div>
+      </div>
+      <label style="margin-top:4px">공개 여부</label>
+      <select id="published"><option value="true">공개(학생에게 보임)</option><option value="false">비공개</option></select>
+    </section>
+
+    <!-- PDF 업로드 -->
+    <section class="card">
+      <label>① 문제지 PDF (지문·선택지 추출용)</label>
+      <input id="pdf_q" type="file" accept="application/pdf">
+      <label>② 해설지 PDF (정답·해설 추출용)</label>
+      <input id="pdf_a" type="file" accept="application/pdf">
+      <div class="row" style="margin-top:6px">
+        <div style="flex:1;min-width:120px"><label>분석 시작 번호</label><input id="from_no" type="number" value="18"></div>
+        <div style="flex:1;min-width:120px"><label>분석 끝 번호</label><input id="to_no" type="number" value="45"></div>
+        <button class="btn-accent" id="btn-parse" style="align-self:end">PDF 분석</button>
+      </div>
+      <div class="msg" id="parse-msg"></div>
+      <details>
+        <summary>또는 JSON 직접 붙여넣기</summary>
+        <textarea id="json_in" placeholder='{"exam":{...},"questions":[...]}'></textarea>
+        <button class="btn-ghost" id="btn-json">JSON 불러오기</button>
+      </details>
+    </section>
+
+    <!-- 검토 표 -->
+    <section class="card" id="review-wrap" style="display:none">
+      <div class="row" style="justify-content:space-between">
+        <strong>검토 (<span id="qcount">0</span>문항)</strong>
+        <button class="btn-primary" id="btn-save">Supabase에 저장</button>
+      </div>
+      <p class="small">자동 분석 결과입니다. 지문·선택지가 어긋난 부분은 직접 고친 뒤 저장하세요. (선택지는 줄바꿈으로 구분)</p>
+      <div style="overflow-x:auto"><table id="review-table"></table></div>
+      <div class="msg" id="save-msg"></div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="config.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const cfg = window.SUPABASE_CONFIG || {};
+const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+let ADMIN_PASS = null;
+let parsed = []; // 검토용 문항 배열
+
+const $ = id => document.getElementById(id);
+
+// ---------- 로그인 ----------
+$("btn-login").addEventListener("click", login);
+$("pass").addEventListener("keydown", e => { if(e.key==="Enter") login(); });
+async function login(){
+  const p = $("pass").value.trim();
+  const msg = $("login-msg"); msg.textContent="";
+  try{
+    const { data, error } = await sb.rpc("admin_check", { p_pass: p });
+    if(error) throw error;
+    if(data === true){
+      ADMIN_PASS = p;
+      $("login").classList.add("hidden");
+      $("admin").classList.remove("hidden");
+    } else {
+      msg.className="msg err"; msg.textContent="비밀번호가 올바르지 않습니다.";
+    }
+  }catch(e){ msg.className="msg err"; msg.textContent="오류: "+e.message; }
+}
+
+// ---------- PDF 텍스트 추출 ----------
+async function pdfToText(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let text = "";
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // y좌표 기준 줄 정렬
+    let lastY=null, line="";
+    for(const item of content.items){
+      const y = item.transform[5];
+      if(lastY!==null && Math.abs(y-lastY)>3){ text+=line+"\n"; line=""; }
+      line += item.str;
+      lastY = y;
+    }
+    text += line+"\n";
+  }
+  return text;
+}
+
+// ---------- 해설지 파싱 ----------
+function parseAnswerText(t){
+  const circ = {'①':'1','②':'2','③':'3','④':'4','⑤':'5'};
+  const answers={}, explanations={};
+  let m; const ansRe=/(\d{1,2})\.\s*([①②③④⑤])/g;
+  while((m=ansRe.exec(t))!==null) answers[+m[1]]=circ[m[2]];
+  const blocks = t.split(/\n(?=\d{1,2}\.\s*\[출제\s*의도\])/);
+  for(const b of blocks){
+    const h=b.match(/^(\d{1,2})\.\s*\[출제\s*의도\]/); if(!h) continue;
+    const no=+h[1]; const pul=b.split(/\[풀이\]/)[1];
+    if(pul){
+      let ex=pul.split(/\[Words and Phrases\]/)[0].trim().replace(/\s+/g,' ');
+      explanations[no]=ex;
+    }
+  }
+  return {answers, explanations};
+}
+
+// ---------- 문제지 파싱(지문) ----------
+function parseQuestionText(t, from, to){
+  // "18." ~ "45." 경계로 대략 분리 (완벽하지 않으니 검토 필요)
+  const map={};
+  // 줄 시작의 "n." 또는 "n " 패턴
+  const re=new RegExp("(?:^|\\n)\\s*("+from+"|"+(from+1)+"|\\d{1,2})[\\.．]","g");
+  // 간단히: 18~45 각 번호 위치를 찾아 그 사이 텍스트를 지문으로
+  const positions=[];
+  for(let n=from;n<=to;n++){
+    const r=new RegExp("(?:^|\\n)\\s*"+n+"[\\.．]");
+    const mm=r.exec(t);
+    if(mm) positions.push([n, mm.index]);
+  }
+  positions.sort((a,b)=>a[1]-b[1]);
+  for(let i=0;i<positions.length;i++){
+    const [n,start]=positions[i];
+    const end = i+1<positions.length ? positions[i+1][1] : t.length;
+    let seg=t.slice(start,end).replace(/^\s*\d{1,2}[\.．]\s*/,"").trim();
+    map[n]=seg;
+  }
+  return map;
+}
+
+// ---------- 배점 규칙 ----------
+function defaultPoints(no){
+  const threePt=[21,30,33,34,37,38,39,42];
+  return threePt.includes(no)?3:2;
+}
+
+// ---------- PDF 분석 ----------
+$("btn-parse").addEventListener("click", async ()=>{
+  const msg=$("parse-msg"); msg.className="msg"; msg.textContent="분석 중...";
+  try{
+    const from=+$("from_no").value, to=+$("to_no").value;
+    const fa=$("pdf_a").files[0], fq=$("pdf_q").files[0];
+    if(!fa){ msg.className="msg err"; msg.textContent="해설지 PDF를 올려주세요."; return; }
+    const aText = await pdfToText(fa);
+    const {answers, explanations} = parseAnswerText(aText);
+    let qMap={};
+    if(fq){ const qText=await pdfToText(fq); qMap=parseQuestionText(qText, from, to); }
+
+    parsed=[];
+    for(let n=from;n<=to;n++){
+      parsed.push({
+        q_no:n, q_type:"mc",
+        passage:qMap[n]||"",
+        choices:[],
+        answer:answers[n]||"",
+        points:defaultPoints(n),
+        explanation:explanations[n]||""
+      });
+    }
+    renderReview();
+    msg.className="msg ok";
+    msg.textContent=`분석 완료: 정답 ${Object.keys(answers).length}개 / 해설 ${Object.keys(explanations).length}개 추출. 검토 후 저장하세요.`;
+  }catch(e){ msg.className="msg err"; msg.textContent="분석 오류: "+e.message; }
+});
+
+// ---------- JSON 직접 ----------
+$("btn-json").addEventListener("click", ()=>{
+  try{
+    const obj=JSON.parse($("json_in").value);
+    if(obj.exam){
+      $("round_no").value=obj.exam.round_no??$("round_no").value;
+      $("title").value=obj.exam.title??$("title").value;
+      $("subject").value=obj.exam.subject??$("subject").value;
+    }
+    parsed=(obj.questions||[]).map(q=>({
+      q_no:q.q_no,q_type:q.q_type||"mc",passage:q.passage||"",
+      choices:q.choices||[],answer:q.answer||"",
+      points:q.points??defaultPoints(q.q_no),explanation:q.explanation||""
+    }));
+    renderReview();
+    $("parse-msg").className="msg ok";
+    $("parse-msg").textContent=`JSON ${parsed.length}문항 불러옴.`;
+  }catch(e){ $("parse-msg").className="msg err"; $("parse-msg").textContent="JSON 오류: "+e.message; }
+});
+
+// ---------- 검토 표 ----------
+function renderReview(){
+  $("review-wrap").style.display="block";
+  $("qcount").textContent=parsed.length;
+  const tb=$("review-table");
+  tb.innerHTML="<tr><th>번호</th><th>지문</th><th>선택지(줄바꿈 구분)</th><th>정답</th><th>배점</th><th>해설</th></tr>";
+  parsed.forEach((q,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=
+      `<td style="text-align:center;font-weight:600">${q.q_no}</td>
+       <td><textarea data-i="${i}" data-k="passage">${esc(q.passage)}</textarea></td>
+       <td><textarea data-i="${i}" data-k="choices">${esc((q.choices||[]).join("\n"))}</textarea></td>
+       <td style="width:48px"><input data-i="${i}" data-k="answer" value="${esc(q.answer)}"></td>
+       <td style="width:48px"><input data-i="${i}" data-k="points" type="number" value="${q.points}"></td>
+       <td><textarea data-i="${i}" data-k="explanation">${esc(q.explanation)}</textarea></td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll("[data-i]").forEach(el=>{
+    el.addEventListener("input",()=>{
+      const i=+el.dataset.i, k=el.dataset.k;
+      if(k==="choices") parsed[i].choices=el.value.split("\n").map(s=>s.trim()).filter(Boolean);
+      else if(k==="points") parsed[i].points=+el.value;
+      else parsed[i][k]=el.value;
+    });
+  });
+}
+function esc(s){return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+
+// ---------- 저장 ----------
+$("btn-save").addEventListener("click", async ()=>{
+  const msg=$("save-msg"); msg.className="msg"; msg.textContent="저장 중...";
+  try{
+    const exam={
+      round_no:+$("round_no").value,
+      title:$("title").value.trim(),
+      subject:$("subject").value.trim()||"English",
+      published:$("published").value==="true"
+    };
+    if(!exam.title){ msg.className="msg err"; msg.textContent="제목을 입력하세요."; return; }
+    const { data, error } = await sb.rpc("admin_save_exam",{
+      p_pass:ADMIN_PASS, p_exam:exam, p_questions:parsed
+    });
+    if(error) throw error;
+    msg.className="msg ok";
+    msg.textContent=`저장 완료! 문항 ${data.saved_questions}개 반영됨.`;
+  }catch(e){ msg.className="msg err"; msg.textContent="저장 오류: "+e.message; }
+});
+</script>
+</body>
+</html>
