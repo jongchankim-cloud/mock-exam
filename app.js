@@ -195,12 +195,16 @@ function showQuestion(q) {
   const typeLabel = q.q_type === "written" ? "서답형" : "객관식";
   const ansDisplay = q.q_type === "mc" ? `${q.answer}번` : escapeHtml(q.answer || "");
 
+  // 발문(첫 문단)과 영어 지문(나머지)을 빈 줄 기준으로 분리.
+  // 발문은 들여쓰기 없이, 지문 문단은 첫 줄 들여쓰기 적용.
+  const passageHtml = renderPassage(q.passage);
+
   el.innerHTML = `
     <div class="qhead">
       <span class="num">${q.q_no}</span>
       <span class="pts">${typeLabel} · ${q.points || 0}점</span>
     </div>
-    <div class="passage">${q.passage ? escapeHtml(q.passage) : ""}</div>
+    <div class="passage-block">${passageHtml}</div>
     ${choicesHtml}
     <div class="explain-wrap">
       <button class="explain-btn" id="explain-toggle">해설 보기 ▾</button>
@@ -233,6 +237,22 @@ $("back-to-exam").addEventListener("click", () => showExam(currentExam));
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (m) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+// 발문(첫 문단) + 영어 지문(나머지)을 빈 줄로 나눠 렌더링.
+// 첫 문단은 들여쓰기 없음(.prompt), 이후 문단은 첫 줄 들여쓰기(.passage).
+function renderPassage(text) {
+  if (!text) return "";
+  const parts = String(text).split(/\n\s*\n/); // 빈 줄 기준 문단 분리
+  if (parts.length === 1) {
+    // 빈 줄이 없으면 전체를 지문으로 보고 들여쓰기 적용
+    return `<div class="passage">${escapeHtml(parts[0].trim())}</div>`;
+  }
+  const prompt = parts[0].trim();
+  const rest = parts.slice(1).map(p => p.trim()).filter(Boolean);
+  let html = `<div class="prompt">${escapeHtml(prompt)}</div>`;
+  html += rest.map(p => `<div class="passage">${escapeHtml(p)}</div>`).join("");
+  return html;
 }
 
 // ---------- 세션 복원 ----------
