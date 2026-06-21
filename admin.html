@@ -63,6 +63,11 @@
   .badge{font-size:11px;padding:2px 8px;border-radius:999px}
   .badge.on{background:#e2f0e8;color:var(--ok)}
   .badge.off{background:#f0e0db;color:var(--accent)}
+  /* JSON 드롭존 */
+  .dropzone{border:2px dashed var(--rule);border-radius:10px;padding:22px;text-align:center;
+    cursor:pointer;display:flex;flex-direction:column;gap:4px;color:var(--ink-soft);background:#fffefb;transition:all .15s}
+  .dropzone:hover{border-color:var(--accent);background:#fff8f5}
+  .dropzone.drag{border-color:var(--accent);background:#fdeee9;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -113,8 +118,19 @@
         <button class="btn-accent" id="btn-parse" style="align-self:end">PDF 분석</button>
       </div>
       <div class="msg" id="parse-msg"></div>
-      <details>
-        <summary>또는 JSON 직접 붙여넣기</summary>
+    </section>
+
+    <!-- JSON 업로드 (권장: 정확도 높음) -->
+    <section class="card">
+      <label>JSON으로 등록 (권장 — 가장 정확)</label>
+      <p class="small" style="margin:0 0 8px">전달받은 .json 파일을 끌어다 놓거나, 내용을 붙여넣으세요. 불러오면 검토 화면이 열립니다.</p>
+      <div id="json-drop" class="dropzone">
+        <span>여기로 .json 파일을 끌어다 놓기</span>
+        <span class="small">또는 클릭해서 파일 선택</span>
+        <input id="json_file" type="file" accept=".json,application/json" style="display:none">
+      </div>
+      <details style="margin-top:10px">
+        <summary>JSON 텍스트로 붙여넣기</summary>
         <textarea id="json_in" placeholder='{"exam":{...},"questions":[...]}'></textarea>
         <button class="btn-ghost" id="btn-json">JSON 불러오기</button>
       </details>
@@ -353,21 +369,18 @@ $("btn-parse").addEventListener("click", async ()=>{
       rawSeg = rawSeg.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
                      .replace(/이 문제지에 관한 저작권[\s\S]*$/,"")
                      .trim();
-      // 빈칸(밑줄) 표기 정규화
-      // 1) 남아있는 밑줄들을 일정한 빈칸 기호로 통일
+      // 빈칸(밑줄) 표기 정규화: 남아있는 밑줄을 일정한 빈칸 기호로 통일
       rawSeg = rawSeg.replace(/[_＿]{2,}/g, " __________ ")
                      .replace(/[ \t]{2,}/g, " ");
-      // 2) 빈칸 추론 문항(31~34)에서 밑줄이 사라진 흔적 복원.
-      //    PDF에서 밑줄이 통째로 사라지면 "단어 (줄바꿈/공백) 마침표" 형태로 남는다.
-      //    \s 는 줄바꿈도 포함하므로 "must\n." 같은 경우도 잡는다.
-      if(n>=31 && n<=34 && !/_{3,}/.test(rawSeg)){
-        rawSeg = rawSeg
-          // 단어 + 공백류 + 외톨이 마침표  →  단어 __________.
-          .replace(/([A-Za-z])\s+\.(\s|$)/g, "$1 __________.$2")
-          // 콜론/쉼표 뒤 외톨이 마침표 케이스
-          .replace(/([,:;])\s+\.(\s|$)/g, "$1 __________.$2");
-      }
-      const sp = splitChoices(rawSeg);
+      // ※ 빈칸 자동 복원(외톨이 마침표→빈칸)은 위치 오인이 많아 비활성화함.
+      //   31~34 빈칸 문항은 검토 화면의 "커서 위치에 빈칸 삽입" 버튼으로 직접 넣는다.
+
+      // 선택지 분리 여부 결정.
+      //  지문 속 ①~⑤가 '본문의 일부'라서 떼면 안 되는 문항만 보호한다:
+      //    35(무관 문장), 38·39(문장 삽입)  ← 글 안에 ①~⑤가 위치표시로 박혀 있음
+      //  나머지(31~34 빈칸, 36·37·43 순서 등)는 ①~⑤가 글 끝 보기라 정상 분리.
+      const noSplit = (n===35) || (n===38) || (n===39);
+      const sp = noSplit ? {passage: rawSeg.trim(), choices: []} : splitChoices(rawSeg);
 
       // 장문 공유 지문 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
       let passage = sp.passage;
@@ -389,25 +402,58 @@ $("btn-parse").addEventListener("click", async ()=>{
   }catch(e){ msg.className="msg err"; msg.textContent="분석 오류: "+e.message; }
 });
 
-// ---------- JSON 직접 ----------
-$("btn-json").addEventListener("click", ()=>{
-  try{
-    const obj=JSON.parse($("json_in").value);
-    if(obj.exam){
-      $("round_no").value=obj.exam.round_no??$("round_no").value;
-      $("title").value=obj.exam.title??$("title").value;
-      $("subject").value=obj.exam.subject??$("subject").value;
+// ---------- JSON 불러오기 (공통) ----------
+function loadJson(text){
+  const obj=JSON.parse(text); // 실패하면 throw → 호출부에서 처리
+  if(obj.exam){
+    if(obj.exam.round_no!=null) $("round_no").value=obj.exam.round_no;
+    if(obj.exam.title!=null)    $("title").value=obj.exam.title;
+    if(obj.exam.subject!=null)  $("subject").value=obj.exam.subject;
+    if(obj.exam.published!=null) $("published").value=String(obj.exam.published);
+  }
+  parsed=(obj.questions||[]).map(q=>{
+    // prompt(발문)가 따로 있으면 passage 앞에 합쳐 학생 화면에서 발문+지문으로 표시
+    let passage = q.passage||"";
+    if(q.prompt){
+      passage = passage ? (q.prompt + "\n\n" + passage) : q.prompt;
     }
-    parsed=(obj.questions||[]).map(q=>({
-      q_no:q.q_no,q_type:q.q_type||"mc",passage:q.passage||"",
-      choices:q.choices||[],answer:q.answer||"",
-      points:q.points??defaultPoints(q.q_no),explanation:q.explanation||""
-    }));
-    renderReview();
-    $("parse-msg").className="msg ok";
-    $("parse-msg").textContent=`JSON ${parsed.length}문항 불러옴.`;
-  }catch(e){ $("parse-msg").className="msg err"; $("parse-msg").textContent="JSON 오류: "+e.message; }
+    return {
+      q_no:q.q_no, q_type:q.q_type||"mc", passage,
+      choices:q.choices||[], answer:q.answer||"",
+      points:q.points??defaultPoints(q.q_no), explanation:q.explanation||""
+    };
+  });
+  renderReview();
+  toast(`JSON ${parsed.length}문항 불러옴 — 검토 후 저장하세요.`,"ok");
+  // 검토 표로 스크롤
+  $("review-wrap").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+// 텍스트 붙여넣기 → 불러오기
+$("btn-json").addEventListener("click", ()=>{
+  try{ loadJson($("json_in").value); }
+  catch(e){ toast("JSON 오류: "+e.message,"err"); }
 });
+
+// 파일(드래그/선택) → 불러오기
+const dz=$("json-drop"), jf=$("json_file");
+dz.addEventListener("click", ()=>jf.click());
+jf.addEventListener("change", ()=>{ if(jf.files[0]) readJsonFile(jf.files[0]); });
+["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("drag");}));
+dz.addEventListener("drop", e=>{
+  const f=e.dataTransfer.files[0];
+  if(f) readJsonFile(f);
+});
+function readJsonFile(file){
+  if(!/\.json$/i.test(file.name) && file.type!=="application/json"){
+    toast("JSON 파일(.json)만 올릴 수 있습니다.","err"); return;
+  }
+  const reader=new FileReader();
+  reader.onload=()=>{ try{ loadJson(reader.result); }catch(e){ toast("JSON 오류: "+e.message,"err"); } };
+  reader.onerror=()=>toast("파일을 읽지 못했습니다.","err");
+  reader.readAsText(file,"utf-8");
+}
 
 // ---------- 검토 표 ----------
 function renderReview(){
