@@ -32,8 +32,12 @@
   table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
   th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
   th{background:#f0ebe0;font-size:12px}
-  td textarea{min-height:60px;margin:0}
+  td textarea{min-height:60px;margin:0;overflow:hidden;resize:vertical}
   td input{margin:0}
+  /* 검토 표: 위쪽 정렬, 셀 넓이 확보 */
+  #review-table td:nth-child(2),
+  #review-table td:nth-child(3),
+  #review-table td:nth-child(6){min-width:240px}
   .small{font-size:12px;color:var(--ink-soft)}
   .hidden{display:none}
   .tag{display:inline-block;font-size:11px;background:#f0e0db;color:var(--accent);padding:2px 8px;border-radius:999px}
@@ -306,8 +310,16 @@ function renderReview(){
       if(k==="choices") parsed[i].choices=el.value.split("\n").map(s=>s.trim()).filter(Boolean);
       else if(k==="points") parsed[i].points=+el.value;
       else parsed[i][k]=el.value;
+      autoGrow(el);
     });
+    autoGrow(el); // 최초 렌더 시 높이 맞춤
   });
+}
+// textarea 높이를 내용에 맞춰 자동 조정
+function autoGrow(el){
+  if(el.tagName!=="TEXTAREA") return;
+  el.style.height="auto";
+  el.style.height=(el.scrollHeight+2)+"px";
 }
 function esc(s){return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
 
