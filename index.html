@@ -96,6 +96,9 @@
   .qhead .num{font-family:"Newsreader",serif;font-size:30px;font-weight:600;color:var(--accent);line-height:1}
   .qhead .pts{font-size:12px;color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
   .passage{font-size:15.5px;white-space:pre-wrap;text-align:justify;word-break:break-word;hyphens:auto;text-indent:1.1em}
+  .passage + .passage{margin-top:10px}
+  /* 발문(질문)은 들여쓰기 없이 */
+  .prompt{font-size:15.5px;white-space:pre-wrap;margin-bottom:14px}
   /* 해설 내부 본문은 들여쓰기 제외 */
   .explain-body .passage{text-indent:0}
   .choices{list-style:none;margin:16px 0 0;padding:0;counter-reset:c}
