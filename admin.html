@@ -353,6 +353,9 @@ $("btn-parse").addEventListener("click", async ()=>{
       rawSeg = rawSeg.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
                      .replace(/이 문제지에 관한 저작권[\s\S]*$/,"")
                      .trim();
+      // 빈칸(밑줄) 표기 정규화: 길이 다른 밑줄들을 일정한 빈칸 기호로 통일
+      rawSeg = rawSeg.replace(/[_＿]{2,}/g, " __________ ")
+                     .replace(/ {2,}/g, " ");
       const sp = splitChoices(rawSeg);
 
       // 장문 공유 지문 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
