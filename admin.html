@@ -353,9 +353,20 @@ $("btn-parse").addEventListener("click", async ()=>{
       rawSeg = rawSeg.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
                      .replace(/이 문제지에 관한 저작권[\s\S]*$/,"")
                      .trim();
-      // 빈칸(밑줄) 표기 정규화: 길이 다른 밑줄들을 일정한 빈칸 기호로 통일
+      // 빈칸(밑줄) 표기 정규화
+      // 1) 남아있는 밑줄들을 일정한 빈칸 기호로 통일
       rawSeg = rawSeg.replace(/[_＿]{2,}/g, " __________ ")
-                     .replace(/ {2,}/g, " ");
+                     .replace(/[ \t]{2,}/g, " ");
+      // 2) 빈칸 추론 문항(31~34)에서 밑줄이 사라진 흔적 복원.
+      //    PDF에서 밑줄이 통째로 사라지면 "단어 (줄바꿈/공백) 마침표" 형태로 남는다.
+      //    \s 는 줄바꿈도 포함하므로 "must\n." 같은 경우도 잡는다.
+      if(n>=31 && n<=34 && !/_{3,}/.test(rawSeg)){
+        rawSeg = rawSeg
+          // 단어 + 공백류 + 외톨이 마침표  →  단어 __________.
+          .replace(/([A-Za-z])\s+\.(\s|$)/g, "$1 __________.$2")
+          // 콜론/쉼표 뒤 외톨이 마침표 케이스
+          .replace(/([,:;])\s+\.(\s|$)/g, "$1 __________.$2");
+      }
       const sp = splitChoices(rawSeg);
 
       // 장문 공유 지문 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
@@ -410,14 +421,39 @@ function renderReview(){
     let copyBtn="";
     if(q.q_no===41) copyBtn=`<button class="btn-ghost" data-copy="41" style="margin-top:6px;padding:4px 8px;font-size:12px">↓ 42번에 지문 복사</button>`;
     if(q.q_no===43) copyBtn=`<button class="btn-ghost" data-copy="43" style="margin-top:6px;padding:4px 8px;font-size:12px">↓ 44·45번에 지문 복사</button>`;
+    // 빈칸 추론(31~34) + 빈칸 기호 없음 → 경고 + 삽입 버튼
+    let blankHelp="";
+    const isFill = q.q_no>=31 && q.q_no<=34;
+    const hasBlank = /_{3,}/.test(q.passage||"");
+    if(isFill && !hasBlank){
+      blankHelp=`<div style="margin-top:6px">
+        <span class="badge off">빈칸 누락?</span>
+        <button class="btn-ghost" data-blank="${i}" style="padding:4px 8px;font-size:12px">커서 위치에 빈칸 삽입</button>
+      </div>`;
+    } else if(isFill && hasBlank){
+      blankHelp=`<div style="margin-top:6px"><span class="badge on">빈칸 있음</span></div>`;
+    }
     tr.innerHTML=
       `<td style="text-align:center;font-weight:600">${q.q_no}</td>
-       <td><textarea data-i="${i}" data-k="passage">${esc(q.passage)}</textarea>${copyBtn}</td>
+       <td><textarea data-i="${i}" data-k="passage">${esc(q.passage)}</textarea>${copyBtn}${blankHelp}</td>
        <td><textarea data-i="${i}" data-k="choices">${esc((q.choices||[]).join("\n"))}</textarea></td>
        <td style="width:48px"><input data-i="${i}" data-k="answer" value="${esc(q.answer)}"></td>
        <td style="width:48px"><input data-i="${i}" data-k="points" type="number" value="${q.points}"></td>
        <td><textarea data-i="${i}" data-k="explanation">${esc(q.explanation)}</textarea></td>`;
     tb.appendChild(tr);
+  });
+  // 빈칸 삽입 버튼 동작
+  tb.querySelectorAll("[data-blank]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const i=+btn.dataset.blank;
+      const ta=tb.querySelector(`textarea[data-i="${i}"][data-k="passage"]`);
+      if(!ta) return;
+      const pos = ta.selectionStart ?? ta.value.length;
+      const blank=" __________ ";
+      ta.value = ta.value.slice(0,pos) + blank + ta.value.slice(pos);
+      parsed[i].passage = ta.value.replace(/ {2,}/g," ");
+      renderReview();
+    });
   });
   // 지문 복사 버튼 동작
   tb.querySelectorAll("[data-copy]").forEach(btn=>{
