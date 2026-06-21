@@ -37,9 +37,31 @@ const DEMO = {
 };
 
 // ---------- 상태 ----------
-let session = null;          // {id, name}
+let session = null;          // {id, name, pin}
 let currentExam = null;      // exam object
 let currentQuestions = [];   // questions of current exam
+let favSet = new Set();      // 현재 회차의 즐겨찾기 q_no 집합
+
+// ---------- 즐겨찾기 헬퍼 ----------
+async function loadFavsForExam(examId){
+  favSet = new Set();
+  if(!sb || !session) return;
+  try{
+    const { data, error } = await sb.rpc("fav_list_by_exam",
+      { p_name: session.name, p_pin: session.pin, p_exam_id: examId });
+    if(error) throw error;
+    (data||[]).forEach(r=>favSet.add(r.q_no));
+  }catch(e){ console.error("fav load", e); }
+}
+
+async function toggleFav(examId, qNo){
+  if(!sb || !session) return false;
+  const { data, error } = await sb.rpc("fav_toggle",
+    { p_name: session.name, p_pin: session.pin, p_exam_id: examId, p_q_no: qNo });
+  if(error){ console.error("fav toggle", error); throw error; }
+  if(data===true) favSet.add(qNo); else favSet.delete(qNo);
+  return data===true;
+}
 
 // ---------- DOM ----------
 const $ = (id) => document.getElementById(id);
@@ -72,7 +94,7 @@ async function login() {
     }
     if (!found) { errEl.textContent = "이름 또는 PIN이 일치하지 않아요."; return; }
 
-    session = { id: found.id, name: found.name };
+    session = { id: found.id, name: found.name, pin };
     sessionStorage.setItem("mock_session", JSON.stringify(session));
     enterApp();
   } catch (e) {
@@ -122,6 +144,14 @@ async function showHome() {
   $("topbar-title").textContent = "모의고사";
   const listEl = $("exam-list");
   listEl.innerHTML = "";
+
+  // 전체 즐겨찾기 진입 버튼
+  const favEntry = document.createElement("button");
+  favEntry.className = "fav-entry";
+  favEntry.innerHTML = `⭐ 전체 즐겨찾기 모아보기 <span class="chev">›</span>`;
+  favEntry.addEventListener("click", showAllFavorites);
+  listEl.appendChild(favEntry);
+
   let exams = [];
   try { exams = await fetchExams(); } catch (e) { console.error(e); }
   $("exam-empty").classList.toggle("hidden", exams.length > 0);
@@ -139,6 +169,75 @@ async function showHome() {
   });
 }
 
+// ---------- 전체 즐겨찾기 (회차별 그룹) ----------
+async function showAllFavorites() {
+  swap("home");
+  $("topbar-title").textContent = "⭐ 즐겨찾기";
+  const listEl = $("exam-list");
+  listEl.innerHTML = `<div class="loading show"><div class="spinner"></div>불러오는 중...</div>`;
+  $("exam-empty").classList.add("hidden");
+
+  let rows = [];
+  try {
+    const { data, error } = await sb.rpc("fav_list_all",
+      { p_name: session.name, p_pin: session.pin });
+    if (error) throw error;
+    rows = data || [];
+  } catch (e) { console.error(e); }
+
+  listEl.innerHTML = "";
+  const back = document.createElement("button");
+  back.className = "fav-entry";
+  back.innerHTML = `← 회차 목록으로`;
+  back.addEventListener("click", showHome);
+  listEl.appendChild(back);
+
+  if (!rows.length) {
+    const d = document.createElement("div");
+    d.className = "empty"; d.textContent = "아직 즐겨찾기한 문항이 없어요.";
+    listEl.appendChild(d);
+    return;
+  }
+
+  // 회차별 그룹핑
+  const groups = {};
+  rows.forEach(r => {
+    if (!groups[r.exam_id]) groups[r.exam_id] = { round_no: r.round_no, title: r.title, exam_id: r.exam_id, qnos: [] };
+    groups[r.exam_id].qnos.push(r.q_no);
+  });
+
+  Object.values(groups)
+    .sort((a,b)=>a.round_no-b.round_no)
+    .forEach(g => {
+      const card = document.createElement("div");
+      card.className = "fav-group";
+      card.innerHTML = `<div class="fav-group-title">${g.round_no}회차 · ${escapeHtml(g.title)}</div>`;
+      const grid = document.createElement("div");
+      grid.className = "qgrid";
+      g.qnos.forEach(qno => {
+        const b = document.createElement("button");
+        b.className = "qbtn faved";
+        b.innerHTML = `<span class="qstar">★</span>${qno}`;
+        b.addEventListener("click", () => openFavQuestion(g.exam_id, g.title, g.round_no, qno));
+        grid.appendChild(b);
+      });
+      card.appendChild(grid);
+      listEl.appendChild(card);
+    });
+}
+
+// 전체 즐겨찾기에서 특정 문항 열기 (회차 로드 후 해당 문제 표시)
+async function openFavQuestion(examId, title, roundNo, qNo) {
+  const exam = { id: examId, title, round_no: roundNo, subject: "" };
+  currentExam = exam;
+  try { currentQuestions = await fetchQuestions(examId); }
+  catch(e){ currentQuestions = []; }
+  await loadFavsForExam(examId);
+  const q = currentQuestions.find(x => x.q_no === qNo);
+  if (q) showQuestion(q);
+  else showExam(exam);
+}
+
 // ---------- 회차: 문제 번호 그리드 ----------
 async function showExam(exam) {
   currentExam = exam;
@@ -150,6 +249,17 @@ async function showExam(exam) {
 
   try { currentQuestions = await fetchQuestions(exam.id); }
   catch (e) { currentQuestions = []; console.error(e); }
+
+  await loadFavsForExam(exam.id);
+
+  // 즐겨찾기 모아보기 버튼 (이 회차에 즐겨찾기가 있을 때만)
+  if (favSet.size > 0) {
+    const favBtn = document.createElement("button");
+    favBtn.className = "fav-collect-btn";
+    favBtn.innerHTML = `⭐ 이 회차 즐겨찾기 모아보기 (${favSet.size})`;
+    favBtn.addEventListener("click", showFavInExam);
+    wrap.appendChild(favBtn);
+  }
 
   const mc = currentQuestions.filter((q) => q.q_type === "mc");
   const wr = currentQuestions.filter((q) => q.q_type === "written");
@@ -163,6 +273,24 @@ async function showExam(exam) {
   }
 }
 
+// 이 회차의 즐겨찾기 문항만 모아 보여주는 화면
+function showFavInExam() {
+  const favQs = currentQuestions.filter(q => favSet.has(q.q_no));
+  const wrap = $("exam-detail");
+  wrap.innerHTML = `<div class="card"><h2 class="serif" style="margin:0 0 4px">⭐ 즐겨찾기 — ${escapeHtml(currentExam.title)}</h2>
+    <div class="s" style="color:var(--ink-soft);font-size:13px">${favQs.length}문항</div></div>`;
+  const back = document.createElement("button");
+  back.className = "fav-collect-btn";
+  back.textContent = "← 회차 전체 보기";
+  back.addEventListener("click", () => showExam(currentExam));
+  wrap.appendChild(back);
+  if (favQs.length) wrap.appendChild(makeGrid("즐겨찾기 문항", favQs));
+  else {
+    const d=document.createElement("div"); d.className="empty";
+    d.textContent="이 회차에 즐겨찾기한 문항이 없어요."; wrap.appendChild(d);
+  }
+}
+
 function makeGrid(label, qs) {
   const frag = document.createDocumentFragment();
   const lab = document.createElement("div");
@@ -172,8 +300,9 @@ function makeGrid(label, qs) {
   grid.className = "qgrid";
   qs.forEach((q) => {
     const b = document.createElement("button");
-    b.className = "qbtn";
-    b.innerHTML = `${q.q_no}<span class="tag">${q.points || 0}점</span>`;
+    b.className = "qbtn" + (favSet.has(q.q_no) ? " faved" : "");
+    const star = favSet.has(q.q_no) ? `<span class="qstar">★</span>` : "";
+    b.innerHTML = `${star}${q.q_no}<span class="tag">${q.points || 0}점</span>`;
     b.addEventListener("click", () => showQuestion(q));
     grid.appendChild(b);
   });
@@ -203,6 +332,8 @@ function showQuestion(q) {
     <div class="qhead">
       <span class="num">${q.q_no}</span>
       <span class="pts">${typeLabel} · ${q.points || 0}점</span>
+      <button class="fav-btn ${favSet.has(q.q_no) ? "on" : ""}" id="fav-toggle" title="즐겨찾기">
+        ${favSet.has(q.q_no) ? "★" : "☆"}</button>
     </div>
     <div class="passage-block">${passageHtml}</div>
     ${choicesHtml}
@@ -213,6 +344,18 @@ function showQuestion(q) {
         <div class="passage">${q.explanation ? escapeHtml(q.explanation) : "해설이 아직 없습니다."}</div>
       </div>
     </div>`;
+
+  // 즐겨찾기 토글
+  const favBtn = $("fav-toggle");
+  favBtn.addEventListener("click", async () => {
+    favBtn.disabled = true;
+    try{
+      const on = await toggleFav(currentExam.id, q.q_no);
+      favBtn.textContent = on ? "★" : "☆";
+      favBtn.classList.toggle("on", on);
+    }catch(e){ alert("즐겨찾기 저장 중 오류가 발생했어요."); }
+    finally{ favBtn.disabled = false; }
+  });
 
   const toggle = $("explain-toggle");
   const body = $("explain-body");
