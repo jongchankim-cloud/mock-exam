@@ -175,17 +175,41 @@ function parseAnswerText(t){
   }
 
   // (2) 해설 추출: "[출제의도]" 또는 "[출제 의도]" 경계로 블록 분리
+  const shared={}; // 장문 공유 지문 해석 {41:..., 43:...}
   const blocks = t.split(/\n(?=\d{1,2}\s*[\.．]?\s*\[출제\s*의도\])/);
   for(const b of blocks){
     const h=b.match(/^(\d{1,2})\s*[\.．]?\s*\[출제\s*의도\]/); if(!h) continue;
     const no=+h[1];
     let body = b.split(/\[풀이\]/)[1];           // [풀이] 우선
     if(!body) body = b.replace(/^[^\]]*\]/, ''); // 없으면 [출제의도] 뒤 전체
+
     if(body){
+      // ★ 장문 머리말([41~42], [43~45])이 블록 안에 있으면 거기서 끊는다.
+      //   머리말 뒤 공유 지문 해석은 따로 떼어 shared에 저장.
+      const headM = body.match(/\[\s*(\d{1,2})\s*[~∼-]\s*(\d{1,2})\s*\]/);
+      if(headM){
+        const cut = headM.index;
+        const sharedText = body.slice(cut + headM[0].length).trim();
+        const leadNo = +headM[1]; // 41 또는 43
+        // 공유 지문 해석에서 [Words and Phrases] 이후(어휘 목록)는 제거
+        shared[leadNo] = sharedText.split(/\[Words and Phrases\]|\[어휘\]/)[0]
+                                   .trim().replace(/\s+/g,' ');
+        body = body.slice(0, cut); // 앞 문항 해설은 머리말 앞까지만
+      }
       let ex=body.split(/\[Words and Phrases\]|\[어휘\]/)[0].trim().replace(/\s+/g,' ');
       if(ex) explanations[no]=ex;
     }
   }
+
+  // (3) 공유 지문 해석을 묶음 문항에 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
+  //     단, 각 문항의 고유 풀이가 이미 있으면 공유본문을 앞에 덧붙인다.
+  function prepend(no, text){
+    if(!text) return;
+    explanations[no] = explanations[no] ? (text + " / " + explanations[no]) : text;
+  }
+  if(shared[41]){ prepend(41, shared[41]); prepend(42, shared[41]); }
+  if(shared[43]){ prepend(43, shared[43]); prepend(44, shared[43]); prepend(45, shared[43]); }
+
   return {answers, explanations};
 }
 
@@ -213,7 +237,19 @@ function parseQuestionText(t, from, to){
   t = t.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
        .replace(/이 문제지에 관한 저작권[\s\S]*$/g,"");
 
-  // 각 번호의 위치 찾기
+  const map={};
+  // 공유 지문 저장: {41:"공유본문", 43:"공유본문(A~D)"}
+  const shared={};
+
+  // (1) 장문 머리말 위치 탐지: "[41~42] ... 물음에 답하시오." / "[43~45] ..."
+  //     머리말의 시작 인덱스를 경계로 삼는다.
+  const headRe=/\[\s*(\d{1,2})\s*[~∼-]\s*(\d{1,2})\s*\]\s*다음 글을 읽고[^\n]*/g;
+  const heads=[]; let hm;
+  while((hm=headRe.exec(t))!==null){
+    heads.push({ a:+hm[1], b:+hm[2], idx:hm.index, after:hm.index+hm[0].length });
+  }
+
+  // (2) 일반 문항 번호 위치 찾기
   const positions=[];
   for(let n=from;n<=to;n++){
     const r=new RegExp("(?:^|\\n)\\s*"+n+"[\\.．]");
@@ -222,13 +258,28 @@ function parseQuestionText(t, from, to){
   }
   positions.sort((a,b)=>a[1]-b[1]);
 
-  const map={};
+  // (3) 일반 문항 구간 자르기 — 단, 장문 머리말을 만나면 거기서 끊는다.
   for(let i=0;i<positions.length;i++){
     const [n,start]=positions[i];
-    const end = i+1<positions.length ? positions[i+1][1] : t.length;
+    let end = i+1<positions.length ? positions[i+1][1] : t.length;
+    // start~end 사이에 장문 머리말이 있으면 그 앞에서 끊는다(공유지문이 딸려오지 않게)
+    for(const h of heads){
+      if(h.idx>start && h.idx<end){ end=h.idx; break; }
+    }
     let seg=t.slice(start,end).replace(/^\s*\d{1,2}[\.．]\s*/,"").trim();
     map[n]=seg;
   }
+
+  // (4) 장문 공유 지문 추출: 머리말 다음 ~ 그 묶음의 첫 문항 발문 직전까지가 공유 지문
+  for(const h of heads){
+    // 묶음의 첫 문항(a)의 발문 위치
+    const firstQ = positions.find(p=>p[0]===h.a);
+    const passEnd = firstQ ? firstQ[1] : t.length;
+    let body=t.slice(h.after, passEnd).trim();
+    shared[h.a]=body;
+  }
+
+  map.__shared=shared;
   return map;
 }
 
@@ -251,6 +302,7 @@ $("btn-parse").addEventListener("click", async ()=>{
     if(fq){ const qText=await pdfToText(fq); qMap=parseQuestionText(qText, from, to); }
 
     parsed=[];
+    const shared = (qMap && qMap.__shared) || {};
     for(let n=from;n<=to;n++){
       let rawSeg = qMap[n]||"";
       // 각 지문에서 시험지 꼬리말/저작권 문구 한 번 더 제거
@@ -258,9 +310,15 @@ $("btn-parse").addEventListener("click", async ()=>{
                      .replace(/이 문제지에 관한 저작권[\s\S]*$/,"")
                      .trim();
       const sp = splitChoices(rawSeg);
+
+      // 장문 공유 지문 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
+      let passage = sp.passage;
+      if((n===41||n===42) && shared[41]) passage = shared[41] + "\n\n" + sp.passage;
+      if((n===43||n===44||n===45) && shared[43]) passage = shared[43] + "\n\n" + sp.passage;
+
       parsed.push({
         q_no:n, q_type:"mc",
-        passage:sp.passage,
+        passage:passage.trim(),
         choices:sp.choices,
         answer:answers[n]||"",
         points:defaultPoints(n),
