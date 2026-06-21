@@ -241,15 +241,17 @@ function escapeHtml(s) {
 
 // 발문(첫 문단) + 영어 지문(나머지)을 빈 줄로 나눠 렌더링.
 // 첫 문단은 들여쓰기 없음(.prompt), 이후 문단은 첫 줄 들여쓰기(.passage).
+// 문단 안의 줄바꿈은 공백으로 합쳐 양쪽정렬이 컨테이너 폭을 따라 적용되게 한다.
 function renderPassage(text) {
   if (!text) return "";
+  // 문단 내부 단일 줄바꿈 → 공백 (빈 줄(문단 구분)은 보존)
+  const flow = s => String(s).replace(/[ \t]*\n[ \t]*/g, " ").replace(/\s+/g, " ").trim();
   const parts = String(text).split(/\n\s*\n/); // 빈 줄 기준 문단 분리
   if (parts.length === 1) {
-    // 빈 줄이 없으면 전체를 지문으로 보고 들여쓰기 적용
-    return `<div class="passage">${escapeHtml(parts[0].trim())}</div>`;
+    return `<div class="passage">${escapeHtml(flow(parts[0]))}</div>`;
   }
-  const prompt = parts[0].trim();
-  const rest = parts.slice(1).map(p => p.trim()).filter(Boolean);
+  const prompt = flow(parts[0]);
+  const rest = parts.slice(1).map(flow).filter(Boolean);
   let html = `<div class="prompt">${escapeHtml(prompt)}</div>`;
   html += rest.map(p => `<div class="passage">${escapeHtml(p)}</div>`).join("");
   return html;
