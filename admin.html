@@ -43,6 +43,26 @@
   .tag{display:inline-block;font-size:11px;background:#f0e0db;color:var(--accent);padding:2px 8px;border-radius:999px}
   details{margin-top:8px}
   summary{cursor:pointer;font-size:13px;color:var(--ink-soft)}
+  /* 탭 */
+  .tabbar{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+  .tab-btn{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;
+    padding:10px 14px;color:var(--ink-soft);font-weight:600}
+  .tab-btn.active{color:var(--ink);border-bottom-color:var(--accent)}
+  .tab-panel.hidden{display:none}
+  /* 토스트 */
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .25s;z-index:1000;max-width:90%}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:var(--accent)}
+  .toast.ok{background:var(--ok)}
+  /* 회차 목록 표 */
+  .exam-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .exam-row .rno{font-weight:700;min-width:48px}
+  .exam-row .etitle{flex:1;min-width:160px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px}
+  .badge.on{background:#e2f0e8;color:var(--ok)}
+  .badge.off{background:#f0e0db;color:var(--accent)}
 </style>
 </head>
 <body>
@@ -62,11 +82,19 @@
     <h1>모의고사 관리자</h1>
     <p class="sub">PDF를 올려 자동 분석한 뒤, 검토·수정하고 저장하세요.</p>
 
+    <!-- 탭 -->
+    <div class="tabbar">
+      <button class="tab-btn active" data-tab="tab-upload">회차 등록</button>
+      <button class="tab-btn" data-tab="tab-manage">회차 관리</button>
+    </div>
+
+    <!-- ===== 탭1: 회차 등록 ===== -->
+    <div id="tab-upload" class="tab-panel">
     <!-- 회차 정보 -->
     <section class="card">
       <div class="row">
         <div style="flex:1;min-width:120px"><label>회차 번호</label><input id="round_no" type="number" value="2"></div>
-        <div style="flex:3;min-width:200px"><label>제목</label><input id="title" type="text" placeholder="예: 2025학년도 6월 모의고사"></div>
+        <div style="flex:3;min-width:200px"><label>제목 (필수)</label><input id="title" type="text" placeholder="예: 2025학년도 6월 모의고사"></div>
         <div style="flex:1;min-width:100px"><label>과목</label><input id="subject" type="text" value="English"></div>
       </div>
       <label style="margin-top:4px">공개 여부</label>
@@ -102,8 +130,24 @@
       <div style="overflow-x:auto"><table id="review-table"></table></div>
       <div class="msg" id="save-msg"></div>
     </section>
+    </div>
+
+    <!-- ===== 탭2: 회차 관리 ===== -->
+    <div id="tab-manage" class="tab-panel hidden">
+      <section class="card">
+        <div class="row" style="justify-content:space-between">
+          <strong>저장된 회차</strong>
+          <button class="btn-ghost" id="btn-refresh-exams">새로고침</button>
+        </div>
+        <p class="small">공개 여부를 바꾸거나 회차를 삭제할 수 있습니다. 삭제 시 해당 회차의 문제도 함께 지워집니다.</p>
+        <div id="exam-list" class="small">불러오는 중...</div>
+      </section>
+    </div>
   </main>
 </div>
+
+<!-- 토스트 -->
+<div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -407,23 +451,109 @@ function esc(s){return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;
 
 // ---------- 저장 ----------
 $("btn-save").addEventListener("click", async ()=>{
-  const msg=$("save-msg"); msg.className="msg"; msg.textContent="저장 중...";
+  const msg=$("save-msg");
+  const title=$("title").value.trim();
+  if(!title){
+    msg.className="msg err"; msg.textContent="제목을 입력하세요.";
+    toast("회차 제목을 입력해주세요.","err");
+    // 제목 칸으로 스크롤 + 포커스
+    $("title").scrollIntoView({behavior:"smooth",block:"center"});
+    $("title").focus();
+    return;
+  }
+  if(!parsed.length){ toast("저장할 문항이 없습니다. 먼저 PDF를 분석하세요.","err"); return; }
+
+  msg.className="msg"; msg.textContent="저장 중...";
+  toast("저장 중...");
   try{
     const exam={
       round_no:+$("round_no").value,
-      title:$("title").value.trim(),
+      title,
       subject:$("subject").value.trim()||"English",
       published:$("published").value==="true"
     };
-    if(!exam.title){ msg.className="msg err"; msg.textContent="제목을 입력하세요."; return; }
     const { data, error } = await sb.rpc("admin_save_exam",{
       p_pass:ADMIN_PASS, p_exam:exam, p_questions:parsed
     });
     if(error) throw error;
     msg.className="msg ok";
     msg.textContent=`저장 완료! 문항 ${data.saved_questions}개 반영됨.`;
-  }catch(e){ msg.className="msg err"; msg.textContent="저장 오류: "+e.message; }
+    toast(`✅ 저장 완료 — ${exam.round_no}회차, 문항 ${data.saved_questions}개`,"ok");
+  }catch(e){ msg.className="msg err"; msg.textContent="저장 오류: "+e.message; toast("저장 오류: "+e.message,"err"); }
 });
+
+// ---------- 토스트 ----------
+let _toastTimer=null;
+function toast(text, kind){
+  const el=$("toast");
+  el.textContent=text;
+  el.className="toast show"+(kind?(" "+kind):"");
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>{ el.className="toast"; }, 3000);
+}
+
+// ---------- 탭 전환 ----------
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p=>p.classList.add("hidden"));
+    btn.classList.add("active");
+    $(btn.dataset.tab).classList.remove("hidden");
+    if(btn.dataset.tab==="tab-manage") loadExamList();
+  });
+});
+
+// ---------- 회차 관리 ----------
+$("btn-refresh-exams").addEventListener("click", loadExamList);
+
+async function loadExamList(){
+  const box=$("exam-list"); box.textContent="불러오는 중...";
+  try{
+    const { data, error } = await sb.rpc("admin_list_exams",{ p_pass:ADMIN_PASS });
+    if(error) throw error;
+    if(!data || !data.length){ box.textContent="저장된 회차가 없습니다."; return; }
+    box.innerHTML="";
+    data.forEach(e=>{
+      const row=document.createElement("div");
+      row.className="exam-row";
+      row.innerHTML=
+        `<span class="rno">${e.round_no}회</span>
+         <span class="etitle">${esc(e.title||"")}</span>
+         <span class="badge ${e.published?"on":"off"}">${e.published?"공개":"비공개"}</span>
+         <button class="btn-ghost" data-act="toggle" data-round="${e.round_no}" data-pub="${e.published}" style="padding:4px 10px;font-size:12px">
+           ${e.published?"비공개로":"공개로"}</button>
+         <button class="btn-accent" data-act="del" data-round="${e.round_no}" data-title="${esc(e.title||"")}" style="padding:4px 10px;font-size:12px">삭제</button>`;
+      box.appendChild(row);
+    });
+    // 버튼 동작
+    box.querySelectorAll("[data-act]").forEach(b=>{
+      b.addEventListener("click", ()=>handleExamAction(b));
+    });
+  }catch(err){ box.textContent="오류: "+err.message; toast("목록 오류: "+err.message,"err"); }
+}
+
+async function handleExamAction(b){
+  const round=+b.dataset.round;
+  if(b.dataset.act==="toggle"){
+    const newPub = b.dataset.pub!=="true";
+    try{
+      const { error } = await sb.rpc("admin_set_published",{ p_pass:ADMIN_PASS, p_round_no:round, p_published:newPub });
+      if(error) throw error;
+      toast(`${round}회차 ${newPub?"공개":"비공개"}로 변경됨`,"ok");
+      loadExamList();
+    }catch(e){ toast("변경 오류: "+e.message,"err"); }
+  } else if(b.dataset.act==="del"){
+    const title=b.dataset.title||"";
+    if(!confirm(`${round}회차 "${title}" 을(를) 삭제할까요?\n해당 회차의 문제도 모두 삭제됩니다. 되돌릴 수 없습니다.`)) return;
+    try{
+      const { data, error } = await sb.rpc("admin_delete_exam",{ p_pass:ADMIN_PASS, p_round_no:round });
+      if(error) throw error;
+      toast(`🗑 ${round}회차 삭제됨 (문항 ${data.deleted_questions}개)`,"ok");
+      loadExamList();
+    }catch(e){ toast("삭제 오류: "+e.message,"err"); }
+  }
+}
+
 </script>
 </body>
 </html>
