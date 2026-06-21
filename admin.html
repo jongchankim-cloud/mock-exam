@@ -209,11 +209,11 @@ function splitChoices(seg){
 
 // ---------- 문제지 파싱(지문) ----------
 function parseQuestionText(t, from, to){
-  // "18." ~ "45." 경계로 대략 분리 (완벽하지 않으니 검토 필요)
-  const map={};
-  // 줄 시작의 "n." 또는 "n " 패턴
-  const re=new RegExp("(?:^|\\n)\\s*("+from+"|"+(from+1)+"|\\d{1,2})[\\.．]","g");
-  // 간단히: 18~45 각 번호 위치를 찾아 그 사이 텍스트를 지문으로
+  // 시험지 맨 끝의 '확인 사항' 등 안내 꼬리말 제거
+  t = t.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
+       .replace(/이 문제지에 관한 저작권[\s\S]*$/g,"");
+
+  // 각 번호의 위치 찾기
   const positions=[];
   for(let n=from;n<=to;n++){
     const r=new RegExp("(?:^|\\n)\\s*"+n+"[\\.．]");
@@ -221,6 +221,8 @@ function parseQuestionText(t, from, to){
     if(mm) positions.push([n, mm.index]);
   }
   positions.sort((a,b)=>a[1]-b[1]);
+
+  const map={};
   for(let i=0;i<positions.length;i++){
     const [n,start]=positions[i];
     const end = i+1<positions.length ? positions[i+1][1] : t.length;
@@ -250,7 +252,11 @@ $("btn-parse").addEventListener("click", async ()=>{
 
     parsed=[];
     for(let n=from;n<=to;n++){
-      const rawSeg = qMap[n]||"";
+      let rawSeg = qMap[n]||"";
+      // 각 지문에서 시험지 꼬리말/저작권 문구 한 번 더 제거
+      rawSeg = rawSeg.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
+                     .replace(/이 문제지에 관한 저작권[\s\S]*$/,"")
+                     .trim();
       const sp = splitChoices(rawSeg);
       parsed.push({
         q_no:n, q_type:"mc",
@@ -295,14 +301,32 @@ function renderReview(){
   tb.innerHTML="<tr><th>번호</th><th>지문</th><th>선택지(줄바꿈 구분)</th><th>정답</th><th>배점</th><th>해설</th></tr>";
   parsed.forEach((q,i)=>{
     const tr=document.createElement("tr");
+    // 장문 공유 지문 복사 버튼 (41→42, 43→44·45)
+    let copyBtn="";
+    if(q.q_no===41) copyBtn=`<button class="btn-ghost" data-copy="41" style="margin-top:6px;padding:4px 8px;font-size:12px">↓ 42번에 지문 복사</button>`;
+    if(q.q_no===43) copyBtn=`<button class="btn-ghost" data-copy="43" style="margin-top:6px;padding:4px 8px;font-size:12px">↓ 44·45번에 지문 복사</button>`;
     tr.innerHTML=
       `<td style="text-align:center;font-weight:600">${q.q_no}</td>
-       <td><textarea data-i="${i}" data-k="passage">${esc(q.passage)}</textarea></td>
+       <td><textarea data-i="${i}" data-k="passage">${esc(q.passage)}</textarea>${copyBtn}</td>
        <td><textarea data-i="${i}" data-k="choices">${esc((q.choices||[]).join("\n"))}</textarea></td>
        <td style="width:48px"><input data-i="${i}" data-k="answer" value="${esc(q.answer)}"></td>
        <td style="width:48px"><input data-i="${i}" data-k="points" type="number" value="${q.points}"></td>
        <td><textarea data-i="${i}" data-k="explanation">${esc(q.explanation)}</textarea></td>`;
     tb.appendChild(tr);
+  });
+  // 지문 복사 버튼 동작
+  tb.querySelectorAll("[data-copy]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const lead=+btn.dataset.copy;
+      const src=parsed.find(p=>p.q_no===lead);
+      if(!src) return;
+      const targets = lead===41 ? [42] : [44,45];
+      targets.forEach(no=>{
+        const tgt=parsed.find(p=>p.q_no===no);
+        if(tgt) tgt.passage=src.passage;
+      });
+      renderReview();
+    });
   });
   tb.querySelectorAll("[data-i]").forEach(el=>{
     el.addEventListener("input",()=>{
