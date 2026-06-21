@@ -3,592 +3,217 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>모의고사 관리자</title>
+<title>모의고사 · 문제와 해설</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#1c1a17;--ink-soft:#5c574e;--paper:#f6f3ec;--card:#fffdf8;
-    --line:#e3ddd0;--rule:#cfc7b6;--accent:#9a2a2a;--ok:#2f6b4f;--radius:12px;
+    --ink:#1c1a17;
+    --ink-soft:#5c574e;
+    --paper:#f6f3ec;
+    --card:#fffdf8;
+    --line:#e3ddd0;
+    --rule:#cfc7b6;
+    --accent:#9a2a2a;       /* 정답지 빨강 계열 */
+    --accent-soft:#f0e0db;
+    --ok:#2f6b4f;
+    --shadow:0 1px 0 #fff inset, 0 8px 24px -16px rgba(40,30,20,.4);
+    --radius:14px;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--paper);color:var(--ink);
-    font-family:"IBM Plex Sans KR",system-ui,sans-serif;line-height:1.6}
-  .wrap{max-width:1000px;margin:0 auto;padding:24px 18px 80px}
-  h1{font-size:22px;margin:0 0 4px}
-  .sub{color:var(--ink-soft);font-size:13px;margin:0 0 20px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
-  label{display:block;font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;font-weight:600}
-  input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;
-    background:#fffefb;font-family:inherit;font-size:14px;margin-bottom:12px}
-  textarea{min-height:90px;resize:vertical}
-  button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:none;border-radius:8px;padding:10px 16px}
-  .btn-primary{background:var(--ink);color:#fff}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #fbf8f1 0%, var(--paper) 60%) fixed;
+    color:var(--ink);
+    font-family:"IBM Plex Sans KR",system-ui,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:28px 20px 80px}
+  .serif{font-family:"Newsreader",Georgia,serif}
+
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex;align-items:baseline;justify-content:space-between;
+    gap:12px;padding:6px 2px 18px;border-bottom:1px solid var(--line);margin-bottom:24px;
+  }
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .brand .eyebrow{
+    font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);font-weight:600;
+  }
+  .brand h1{
+    font-family:"Newsreader",serif;font-weight:600;font-size:26px;margin:0;letter-spacing:-.01em;
+  }
+  .whoami{font-size:13px;color:var(--ink-soft)}
+  .whoami b{color:var(--ink)}
+  .logout{
+    background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;
+    text-decoration:underline;text-underline-offset:3px;padding:0;margin-left:10px;font-family:inherit;
+  }
+
+  /* ---- cards / list ---- */
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:20px;margin-bottom:14px;
+  }
+  .list-row{
+    display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:16px 18px;margin-bottom:12px;cursor:pointer;
+    font-family:inherit;font-size:15px;color:var(--ink);transition:transform .12s ease,border-color .12s ease;
+  }
+  .list-row:hover{transform:translateY(-1px);border-color:var(--rule)}
+  .badge{
+    flex:none;width:44px;height:44px;border-radius:10px;display:grid;place-items:center;
+    background:var(--accent-soft);color:var(--accent);font-family:"Newsreader",serif;font-weight:600;font-size:18px;
+  }
+  .list-row .meta{display:flex;flex-direction:column;gap:1px;flex:1}
+  .list-row .meta .t{font-weight:600}
+  .list-row .meta .s{font-size:12.5px;color:var(--ink-soft)}
+  .chev{color:var(--rule);font-size:18px}
+
+  /* ---- question number grid ---- */
+  .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:10px;margin-top:6px}
+  .qbtn{
+    aspect-ratio:1;border:1px solid var(--line);border-radius:10px;background:var(--card);
+    cursor:pointer;font-family:"Newsreader",serif;font-size:18px;font-weight:600;color:var(--ink);
+    box-shadow:var(--shadow);transition:transform .1s ease,color .1s ease,border-color .1s ease;
+  }
+  .qbtn:hover{transform:translateY(-1px);color:var(--accent);border-color:var(--accent)}
+  .qbtn .tag{display:block;font-family:"IBM Plex Sans KR";font-size:9px;font-weight:500;color:var(--ink-soft);margin-top:2px}
+
+  /* ---- section label ---- */
+  .sect-label{
+    display:flex;align-items:center;gap:10px;margin:22px 2px 12px;
+    font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;
+  }
+  .sect-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  /* ---- question view ---- */
+  .qhead{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+  .qhead .num{font-family:"Newsreader",serif;font-size:30px;font-weight:600;color:var(--accent);line-height:1}
+  .qhead .pts{font-size:12px;color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+  .passage{font-size:15.5px;text-align:justify;text-justify:inter-word;word-break:normal;overflow-wrap:break-word;text-indent:1.1em;line-height:1.85}
+  .passage + .passage{margin-top:10px}
+  /* 발문(질문)은 들여쓰기 없이 */
+  .prompt{font-size:15.5px;margin-bottom:14px;line-height:1.85}
+  /* 해설 내부 본문은 들여쓰기 제외 */
+  .explain-body .passage{text-indent:0}
+  .choices{list-style:none;margin:16px 0 0;padding:0;counter-reset:c}
+  .choices li{
+    padding:9px 12px;border:1px solid transparent;border-radius:9px;margin-bottom:4px;display:flex;gap:10px;align-items:flex-start;
+  }
+  .choices li::before{
+    counter-increment:c;content:counter(c);flex:none;
+    width:22px;height:22px;border:1px solid var(--rule);border-radius:50%;
+    display:grid;place-items:center;font-size:12px;color:var(--ink-soft);
+  }
+
+  /* ---- explanation toggle ---- */
+  .explain-wrap{margin-top:22px;border-top:1px dashed var(--rule);padding-top:18px}
+  .explain-btn{
+    display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
+    background:var(--accent);color:#fff;border:none;border-radius:999px;padding:9px 18px;
+  }
+  .explain-btn:hover{background:#812020}
+  .explain-body{display:none;margin-top:16px;background:#fbf6ef;border:1px solid var(--line);border-radius:12px;padding:18px}
+  .explain-body.open{display:block;animation:fade .2s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+  .ans-line{display:flex;align-items:center;gap:10px;font-size:15px;margin-bottom:10px;
+    padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .ans-line .k{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .ans-line .v{font-family:"Newsreader",serif;font-size:20px;font-weight:600;color:var(--ok)}
+
+  /* ---- back link ---- */
+  .back{
+    background:none;border:none;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-size:13.5px;
+    padding:0;margin-bottom:18px;display:inline-flex;align-items:center;gap:6px;
+  }
+  .back:hover{color:var(--accent)}
+
+  /* ---- login ---- */
+  .login-screen{min-height:72vh;display:grid;place-items:center}
+  .login-card{
+    width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);
+    border-radius:18px;box-shadow:var(--shadow);padding:30px 26px;
+  }
+  .login-card .eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  .login-card h2{font-family:"Newsreader",serif;font-weight:600;font-size:24px;margin:6px 0 4px}
+  .login-card p.sub{font-size:13px;color:var(--ink-soft);margin:0 0 22px}
+  label{display:block;font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;font-weight:500}
+  input{
+    width:100%;padding:11px 13px;border:1px solid var(--rule);border-radius:10px;background:#fffefb;
+    font-family:inherit;font-size:15px;color:var(--ink);margin-bottom:16px;
+  }
+  input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+  .btn-primary{
+    width:100%;padding:12px;border:none;border-radius:10px;background:var(--ink);color:#fff;
+    font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;
+  }
   .btn-primary:hover{background:#000}
-  .btn-accent{background:var(--accent);color:#fff}
-  .btn-ghost{background:none;border:1px solid var(--rule);color:var(--ink)}
-  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .msg{font-size:13px;margin-top:8px;min-height:18px}
-  .msg.err{color:var(--accent)}
-  .msg.ok{color:var(--ok)}
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
-  th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
-  th{background:#f0ebe0;font-size:12px}
-  td textarea{min-height:60px;margin:0;overflow:hidden;resize:vertical}
-  td input{margin:0}
-  /* 검토 표: 위쪽 정렬, 셀 넓이 확보 */
-  #review-table td:nth-child(2),
-  #review-table td:nth-child(3),
-  #review-table td:nth-child(6){min-width:240px}
-  .small{font-size:12px;color:var(--ink-soft)}
-  .hidden{display:none}
-  .tag{display:inline-block;font-size:11px;background:#f0e0db;color:var(--accent);padding:2px 8px;border-radius:999px}
-  details{margin-top:8px}
-  summary{cursor:pointer;font-size:13px;color:var(--ink-soft)}
-  /* 탭 */
-  .tabbar{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line)}
-  .tab-btn{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;
-    padding:10px 14px;color:var(--ink-soft);font-weight:600}
-  .tab-btn.active{color:var(--ink);border-bottom-color:var(--accent)}
-  .tab-panel.hidden{display:none}
-  /* 토스트 */
-  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
-    background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;
-    box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .25s;z-index:1000;max-width:90%}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  .toast.err{background:var(--accent)}
-  .toast.ok{background:var(--ok)}
-  /* 회차 목록 표 */
-  .exam-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  .exam-row .rno{font-weight:700;min-width:48px}
-  .exam-row .etitle{flex:1;min-width:160px}
-  .badge{font-size:11px;padding:2px 8px;border-radius:999px}
-  .badge.on{background:#e2f0e8;color:var(--ok)}
-  .badge.off{background:#f0e0db;color:var(--accent)}
+  .err{color:var(--accent);font-size:13px;min-height:18px;margin-top:4px}
+
+  .empty{color:var(--ink-soft);font-size:14px;text-align:center;padding:40px 0}
+  .hidden{display:none !important}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <!-- 로그인 -->
-  <section id="login" class="card" style="max-width:380px;margin:60px auto">
-    <h1>관리자 로그인</h1>
-    <p class="sub">관리자 비밀번호를 입력하세요.</p>
-    <input id="pass" type="password" placeholder="비밀번호" autocomplete="off">
-    <button class="btn-primary" id="btn-login" style="width:100%">로그인</button>
-    <div class="msg" id="login-msg"></div>
+  <!-- ============== 로그인 화면 ============== -->
+  <section id="view-login" class="login-screen">
+    <div class="login-card">
+      <div class="eyebrow">Mock Exam Archive</div>
+      <h2>모의고사 열람</h2>
+      <p class="sub">이름과 핸드폰 뒤 4자리로 입장하세요.</p>
+      <label for="in-name">이름</label>
+      <input id="in-name" type="text" autocomplete="name" placeholder="홍길동">
+      <label for="in-pin">PIN (핸드폰 뒤 4자리)</label>
+      <input id="in-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+      <button class="btn-primary" id="btn-login">입장하기</button>
+      <div class="err" id="login-err"></div>
+    </div>
   </section>
 
-  <!-- 관리자 본문 -->
-  <main id="admin" class="hidden">
-    <h1>모의고사 관리자</h1>
-    <p class="sub">PDF를 올려 자동 분석한 뒤, 검토·수정하고 저장하세요.</p>
-
-    <!-- 탭 -->
-    <div class="tabbar">
-      <button class="tab-btn active" data-tab="tab-upload">회차 등록</button>
-      <button class="tab-btn" data-tab="tab-manage">회차 관리</button>
+  <!-- ============== 로그인 후 공통 상단 ============== -->
+  <div id="app" class="hidden">
+    <div class="topbar">
+      <div class="brand">
+        <span class="eyebrow">Mock Exam</span>
+        <h1 id="topbar-title">모의고사</h1>
+      </div>
+      <div class="whoami">
+        <b id="who-name"></b> 님
+        <button class="logout" id="btn-logout">로그아웃</button>
+      </div>
     </div>
 
-    <!-- ===== 탭1: 회차 등록 ===== -->
-    <div id="tab-upload" class="tab-panel">
-    <!-- 회차 정보 -->
-    <section class="card">
-      <div class="row">
-        <div style="flex:1;min-width:120px"><label>회차 번호</label><input id="round_no" type="number" value="2"></div>
-        <div style="flex:3;min-width:200px"><label>제목 (필수)</label><input id="title" type="text" placeholder="예: 2025학년도 6월 모의고사"></div>
-        <div style="flex:1;min-width:100px"><label>과목</label><input id="subject" type="text" value="English"></div>
-      </div>
-      <label style="margin-top:4px">공개 여부</label>
-      <select id="published"><option value="true">공개(학생에게 보임)</option><option value="false">비공개</option></select>
+    <!-- 홈: 회차 리스트 -->
+    <section id="view-home">
+      <div id="exam-list"></div>
+      <div class="empty hidden" id="exam-empty">아직 공개된 회차가 없어요.</div>
     </section>
 
-    <!-- PDF 업로드 -->
-    <section class="card">
-      <label>① 문제지 PDF (지문·선택지 추출용)</label>
-      <input id="pdf_q" type="file" accept="application/pdf">
-      <label>② 해설지 PDF (정답·해설 추출용)</label>
-      <input id="pdf_a" type="file" accept="application/pdf">
-      <div class="row" style="margin-top:6px">
-        <div style="flex:1;min-width:120px"><label>분석 시작 번호</label><input id="from_no" type="number" value="18"></div>
-        <div style="flex:1;min-width:120px"><label>분석 끝 번호</label><input id="to_no" type="number" value="45"></div>
-        <button class="btn-accent" id="btn-parse" style="align-self:end">PDF 분석</button>
-      </div>
-      <div class="msg" id="parse-msg"></div>
-      <details>
-        <summary>또는 JSON 직접 붙여넣기</summary>
-        <textarea id="json_in" placeholder='{"exam":{...},"questions":[...]}'></textarea>
-        <button class="btn-ghost" id="btn-json">JSON 불러오기</button>
-      </details>
+    <!-- 회차: 문제 번호 그리드 -->
+    <section id="view-exam" class="hidden">
+      <button class="back" id="back-to-home">← 회차 목록</button>
+      <div id="exam-detail"></div>
     </section>
 
-    <!-- 검토 표 -->
-    <section class="card" id="review-wrap" style="display:none">
-      <div class="row" style="justify-content:space-between">
-        <strong>검토 (<span id="qcount">0</span>문항)</strong>
-        <button class="btn-primary" id="btn-save">Supabase에 저장</button>
-      </div>
-      <p class="small">자동 분석 결과입니다. 지문·선택지가 어긋난 부분은 직접 고친 뒤 저장하세요. (선택지는 줄바꿈으로 구분)</p>
-      <div style="overflow-x:auto"><table id="review-table"></table></div>
-      <div class="msg" id="save-msg"></div>
+    <!-- 문제 + 해설 -->
+    <section id="view-question" class="hidden">
+      <button class="back" id="back-to-exam">← 문제 목록</button>
+      <div class="card" id="question-detail"></div>
     </section>
-    </div>
+  </div>
 
-    <!-- ===== 탭2: 회차 관리 ===== -->
-    <div id="tab-manage" class="tab-panel hidden">
-      <section class="card">
-        <div class="row" style="justify-content:space-between">
-          <strong>저장된 회차</strong>
-          <button class="btn-ghost" id="btn-refresh-exams">새로고침</button>
-        </div>
-        <p class="small">공개 여부를 바꾸거나 회차를 삭제할 수 있습니다. 삭제 시 해당 회차의 문제도 함께 지워집니다.</p>
-        <div id="exam-list" class="small">불러오는 중...</div>
-      </section>
-    </div>
-  </main>
 </div>
 
-<!-- 토스트 -->
-<div id="toast" class="toast"></div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="config.js"></script>
-<script>
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-const cfg = window.SUPABASE_CONFIG || {};
-const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
-let ADMIN_PASS = null;
-let parsed = []; // 검토용 문항 배열
-
-const $ = id => document.getElementById(id);
-
-// ---------- 로그인 ----------
-$("btn-login").addEventListener("click", login);
-$("pass").addEventListener("keydown", e => { if(e.key==="Enter") login(); });
-async function login(){
-  const p = $("pass").value.trim();
-  const msg = $("login-msg"); msg.textContent="";
-  try{
-    const { data, error } = await sb.rpc("admin_check", { p_pass: p });
-    if(error) throw error;
-    if(data === true){
-      ADMIN_PASS = p;
-      $("login").classList.add("hidden");
-      $("admin").classList.remove("hidden");
-    } else {
-      msg.className="msg err"; msg.textContent="비밀번호가 올바르지 않습니다.";
-    }
-  }catch(e){ msg.className="msg err"; msg.textContent="오류: "+e.message; }
-}
-
-// ---------- PDF 텍스트 추출 ----------
-async function pdfToText(file){
-  const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
-  let text = "";
-  for(let i=1;i<=pdf.numPages;i++){
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    // y좌표 기준 줄 정렬
-    let lastY=null, line="";
-    for(const item of content.items){
-      const y = item.transform[5];
-      if(lastY!==null && Math.abs(y-lastY)>3){ text+=line+"\n"; line=""; }
-      line += item.str;
-      lastY = y;
-    }
-    text += line+"\n";
-  }
-  return text;
-}
-
-// ---------- 해설지 파싱 ----------
-function parseAnswerText(t){
-  const circ = {'①':'1','②':'2','③':'3','④':'4','⑤':'5'};
-  const answers={}, explanations={};
-
-  // (1) 정답표는 보통 첫 해설([출제의도]) 이전에 모여 있다.
-  //     그 영역에서만 정답을 뽑아 본문 속 "①이다" 오인식을 막는다.
-  const firstExp = t.search(/\d{1,2}\s*[\.．]?\s*\[출제\s*의도\]/);
-  const headerRegion = firstExp > 0 ? t.slice(0, firstExp) : t;
-  let m; const ansRe=/(\d{1,2})\s*[\.．]?\s*([①②③④⑤])/g;
-  while((m=ansRe.exec(headerRegion))!==null){
-    const no=+m[1];
-    if(no>=1 && no<=45 && !(no in answers)) answers[no]=circ[m[2]];
-  }
-
-  // (2) 해설 추출: "[출제의도]" 또는 "[출제 의도]" 경계로 블록 분리
-  const shared={}; // 장문 공유 지문 해석 {41:..., 43:...}
-  const blocks = t.split(/\n(?=\d{1,2}\s*[\.．]?\s*\[출제\s*의도\])/);
-  for(const b of blocks){
-    const h=b.match(/^(\d{1,2})\s*[\.．]?\s*\[출제\s*의도\]/); if(!h) continue;
-    const no=+h[1];
-    let body = b.split(/\[풀이\]/)[1];           // [풀이] 우선
-    if(!body) body = b.replace(/^[^\]]*\]/, ''); // 없으면 [출제의도] 뒤 전체
-
-    if(body){
-      // ★ 장문 머리말([41~42], [43~45])이 블록 안에 있으면 거기서 끊는다.
-      //   머리말 뒤 공유 지문 해석은 따로 떼어 shared에 저장.
-      const headM = body.match(/\[\s*(\d{1,2})\s*[~∼-]\s*(\d{1,2})\s*\]/);
-      if(headM){
-        const cut = headM.index;
-        const sharedText = body.slice(cut + headM[0].length).trim();
-        const leadNo = +headM[1]; // 41 또는 43
-        // 공유 지문 해석에서 [Words and Phrases] 이후(어휘 목록)는 제거
-        shared[leadNo] = sharedText.split(/\[Words and Phrases\]|\[어휘\]/)[0]
-                                   .trim().replace(/\s+/g,' ');
-        body = body.slice(0, cut); // 앞 문항 해설은 머리말 앞까지만
-      }
-      let ex=body.split(/\[Words and Phrases\]|\[어휘\]/)[0].trim().replace(/\s+/g,' ');
-      if(ex) explanations[no]=ex;
-    }
-  }
-
-  // (3) 공유 지문 해석을 묶음 문항에 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
-  //     단, 각 문항의 고유 풀이가 이미 있으면 공유본문을 앞에 덧붙인다.
-  function prepend(no, text){
-    if(!text) return;
-    explanations[no] = explanations[no] ? (text + " / " + explanations[no]) : text;
-  }
-  if(shared[41]){ prepend(41, shared[41]); prepend(42, shared[41]); }
-  if(shared[43]){ prepend(43, shared[43]); prepend(44, shared[43]); prepend(45, shared[43]); }
-
-  return {answers, explanations};
-}
-
-// 지문 덩어리에서 ①~⑤ 선택지를 떼어낸다.
-function splitChoices(seg){
-  // 동그라미 번호 위치를 찾는다
-  const marks=['①','②','③','④','⑤'];
-  const idxs=marks.map(s=>seg.indexOf(s));
-  // ①~⑤가 순서대로 모두 존재해야 선택지로 간주
-  if(idxs.some(i=>i<0)) return {passage:seg.trim(), choices:[]};
-  for(let i=1;i<5;i++){ if(idxs[i]<idxs[i-1]) return {passage:seg.trim(), choices:[]}; }
-  const passage = seg.slice(0, idxs[0]).trim();
-  const choices=[];
-  for(let i=0;i<5;i++){
-    const start=idxs[i]+1; // 동그라미 기호 다음부터
-    const end = i<4 ? idxs[i+1] : seg.length;
-    choices.push(seg.slice(start,end).trim());
-  }
-  return {passage, choices};
-}
-
-// ---------- 문제지 파싱(지문) ----------
-function parseQuestionText(t, from, to){
-  // 시험지 맨 끝의 '확인 사항' 등 안내 꼬리말 제거
-  t = t.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
-       .replace(/이 문제지에 관한 저작권[\s\S]*$/g,"");
-
-  const map={};
-  // 공유 지문 저장: {41:"공유본문", 43:"공유본문(A~D)"}
-  const shared={};
-
-  // (1) 장문 머리말 위치 탐지: "[41~42] ... 물음에 답하시오." / "[43~45] ..."
-  //     머리말의 시작 인덱스를 경계로 삼는다.
-  const headRe=/\[\s*(\d{1,2})\s*[~∼-]\s*(\d{1,2})\s*\]\s*다음 글을 읽고[^\n]*/g;
-  const heads=[]; let hm;
-  while((hm=headRe.exec(t))!==null){
-    heads.push({ a:+hm[1], b:+hm[2], idx:hm.index, after:hm.index+hm[0].length });
-  }
-
-  // (2) 일반 문항 번호 위치 찾기
-  const positions=[];
-  for(let n=from;n<=to;n++){
-    const r=new RegExp("(?:^|\\n)\\s*"+n+"[\\.．]");
-    const mm=r.exec(t);
-    if(mm) positions.push([n, mm.index]);
-  }
-  positions.sort((a,b)=>a[1]-b[1]);
-
-  // (3) 일반 문항 구간 자르기 — 단, 장문 머리말을 만나면 거기서 끊는다.
-  for(let i=0;i<positions.length;i++){
-    const [n,start]=positions[i];
-    let end = i+1<positions.length ? positions[i+1][1] : t.length;
-    // start~end 사이에 장문 머리말이 있으면 그 앞에서 끊는다(공유지문이 딸려오지 않게)
-    for(const h of heads){
-      if(h.idx>start && h.idx<end){ end=h.idx; break; }
-    }
-    let seg=t.slice(start,end).replace(/^\s*\d{1,2}[\.．]\s*/,"").trim();
-    map[n]=seg;
-  }
-
-  // (4) 장문 공유 지문 추출: 머리말 다음 ~ 그 묶음의 첫 문항 발문 직전까지가 공유 지문
-  for(const h of heads){
-    // 묶음의 첫 문항(a)의 발문 위치
-    const firstQ = positions.find(p=>p[0]===h.a);
-    const passEnd = firstQ ? firstQ[1] : t.length;
-    let body=t.slice(h.after, passEnd).trim();
-    shared[h.a]=body;
-  }
-
-  map.__shared=shared;
-  return map;
-}
-
-// ---------- 배점 규칙 ----------
-function defaultPoints(no){
-  const threePt=[21,30,33,34,37,38,39,42];
-  return threePt.includes(no)?3:2;
-}
-
-// ---------- PDF 분석 ----------
-$("btn-parse").addEventListener("click", async ()=>{
-  const msg=$("parse-msg"); msg.className="msg"; msg.textContent="분석 중...";
-  try{
-    const from=+$("from_no").value, to=+$("to_no").value;
-    const fa=$("pdf_a").files[0], fq=$("pdf_q").files[0];
-    if(!fa){ msg.className="msg err"; msg.textContent="해설지 PDF를 올려주세요."; return; }
-    const aText = await pdfToText(fa);
-    const {answers, explanations} = parseAnswerText(aText);
-    let qMap={};
-    if(fq){ const qText=await pdfToText(fq); qMap=parseQuestionText(qText, from, to); }
-
-    parsed=[];
-    const shared = (qMap && qMap.__shared) || {};
-    for(let n=from;n<=to;n++){
-      let rawSeg = qMap[n]||"";
-      // 각 지문에서 시험지 꼬리말/저작권 문구 한 번 더 제거
-      rawSeg = rawSeg.replace(/[*※]\s*확인\s*사항[\s\S]*$/,"")
-                     .replace(/이 문제지에 관한 저작권[\s\S]*$/,"")
-                     .trim();
-      // 빈칸(밑줄) 표기 정규화
-      // 1) 남아있는 밑줄들을 일정한 빈칸 기호로 통일
-      rawSeg = rawSeg.replace(/[_＿]{2,}/g, " __________ ")
-                     .replace(/ {2,}/g, " ");
-      // 2) 빈칸 추론 문항(31~34, 빈칸 채우기)에서 밑줄이 사라진 흔적 복원:
-      //    "단어 공백 마침표/쉼표" 또는 문장 중간 " . " 처럼 빈 자리가 보이면 빈칸 삽입.
-      if(n>=31 && n<=34 && !/_{3,}/.test(rawSeg)){
-        // " . " (앞뒤 공백 있는 외톨이 마침표) → 빈칸 + 마침표
-        rawSeg = rawSeg.replace(/(\w)\s+\.(\s)/g, "$1 __________.$2");
-      }
-      const sp = splitChoices(rawSeg);
-
-      // 장문 공유 지문 배분: 41·42 ← shared[41], 43·44·45 ← shared[43]
-      let passage = sp.passage;
-      if((n===41||n===42) && shared[41]) passage = shared[41] + "\n\n" + sp.passage;
-      if((n===43||n===44||n===45) && shared[43]) passage = shared[43] + "\n\n" + sp.passage;
-
-      parsed.push({
-        q_no:n, q_type:"mc",
-        passage:passage.trim(),
-        choices:sp.choices,
-        answer:answers[n]||"",
-        points:defaultPoints(n),
-        explanation:explanations[n]||""
-      });
-    }
-    renderReview();
-    msg.className="msg ok";
-    msg.textContent=`분석 완료: 정답 ${Object.keys(answers).length}개 / 해설 ${Object.keys(explanations).length}개 추출. 검토 후 저장하세요.`;
-  }catch(e){ msg.className="msg err"; msg.textContent="분석 오류: "+e.message; }
-});
-
-// ---------- JSON 직접 ----------
-$("btn-json").addEventListener("click", ()=>{
-  try{
-    const obj=JSON.parse($("json_in").value);
-    if(obj.exam){
-      $("round_no").value=obj.exam.round_no??$("round_no").value;
-      $("title").value=obj.exam.title??$("title").value;
-      $("subject").value=obj.exam.subject??$("subject").value;
-    }
-    parsed=(obj.questions||[]).map(q=>({
-      q_no:q.q_no,q_type:q.q_type||"mc",passage:q.passage||"",
-      choices:q.choices||[],answer:q.answer||"",
-      points:q.points??defaultPoints(q.q_no),explanation:q.explanation||""
-    }));
-    renderReview();
-    $("parse-msg").className="msg ok";
-    $("parse-msg").textContent=`JSON ${parsed.length}문항 불러옴.`;
-  }catch(e){ $("parse-msg").className="msg err"; $("parse-msg").textContent="JSON 오류: "+e.message; }
-});
-
-// ---------- 검토 표 ----------
-function renderReview(){
-  $("review-wrap").style.display="block";
-  $("qcount").textContent=parsed.length;
-  const tb=$("review-table");
-  tb.innerHTML="<tr><th>번호</th><th>지문</th><th>선택지(줄바꿈 구분)</th><th>정답</th><th>배점</th><th>해설</th></tr>";
-  parsed.forEach((q,i)=>{
-    const tr=document.createElement("tr");
-    // 장문 공유 지문 복사 버튼 (41→42, 43→44·45)
-    let copyBtn="";
-    if(q.q_no===41) copyBtn=`<button class="btn-ghost" data-copy="41" style="margin-top:6px;padding:4px 8px;font-size:12px">↓ 42번에 지문 복사</button>`;
-    if(q.q_no===43) copyBtn=`<button class="btn-ghost" data-copy="43" style="margin-top:6px;padding:4px 8px;font-size:12px">↓ 44·45번에 지문 복사</button>`;
-    // 빈칸 추론(31~34) + 빈칸 기호 없음 → 경고 + 삽입 버튼
-    let blankHelp="";
-    const isFill = q.q_no>=31 && q.q_no<=34;
-    const hasBlank = /_{3,}/.test(q.passage||"");
-    if(isFill && !hasBlank){
-      blankHelp=`<div style="margin-top:6px">
-        <span class="badge off">빈칸 누락?</span>
-        <button class="btn-ghost" data-blank="${i}" style="padding:4px 8px;font-size:12px">커서 위치에 빈칸 삽입</button>
-      </div>`;
-    } else if(isFill && hasBlank){
-      blankHelp=`<div style="margin-top:6px"><span class="badge on">빈칸 있음</span></div>`;
-    }
-    tr.innerHTML=
-      `<td style="text-align:center;font-weight:600">${q.q_no}</td>
-       <td><textarea data-i="${i}" data-k="passage">${esc(q.passage)}</textarea>${copyBtn}${blankHelp}</td>
-       <td><textarea data-i="${i}" data-k="choices">${esc((q.choices||[]).join("\n"))}</textarea></td>
-       <td style="width:48px"><input data-i="${i}" data-k="answer" value="${esc(q.answer)}"></td>
-       <td style="width:48px"><input data-i="${i}" data-k="points" type="number" value="${q.points}"></td>
-       <td><textarea data-i="${i}" data-k="explanation">${esc(q.explanation)}</textarea></td>`;
-    tb.appendChild(tr);
-  });
-  // 빈칸 삽입 버튼 동작
-  tb.querySelectorAll("[data-blank]").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      const i=+btn.dataset.blank;
-      const ta=tb.querySelector(`textarea[data-i="${i}"][data-k="passage"]`);
-      if(!ta) return;
-      const pos = ta.selectionStart ?? ta.value.length;
-      const blank=" __________ ";
-      ta.value = ta.value.slice(0,pos) + blank + ta.value.slice(pos);
-      parsed[i].passage = ta.value.replace(/ {2,}/g," ");
-      renderReview();
-    });
-  });
-  // 지문 복사 버튼 동작
-  tb.querySelectorAll("[data-copy]").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      const lead=+btn.dataset.copy;
-      const src=parsed.find(p=>p.q_no===lead);
-      if(!src) return;
-      const targets = lead===41 ? [42] : [44,45];
-      targets.forEach(no=>{
-        const tgt=parsed.find(p=>p.q_no===no);
-        if(tgt) tgt.passage=src.passage;
-      });
-      renderReview();
-    });
-  });
-  tb.querySelectorAll("[data-i]").forEach(el=>{
-    el.addEventListener("input",()=>{
-      const i=+el.dataset.i, k=el.dataset.k;
-      if(k==="choices") parsed[i].choices=el.value.split("\n").map(s=>s.trim()).filter(Boolean);
-      else if(k==="points") parsed[i].points=+el.value;
-      else parsed[i][k]=el.value;
-      autoGrow(el);
-    });
-    autoGrow(el); // 최초 렌더 시 높이 맞춤
-  });
-}
-// textarea 높이를 내용에 맞춰 자동 조정
-function autoGrow(el){
-  if(el.tagName!=="TEXTAREA") return;
-  el.style.height="auto";
-  el.style.height=(el.scrollHeight+2)+"px";
-}
-function esc(s){return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
-
-// ---------- 저장 ----------
-$("btn-save").addEventListener("click", async ()=>{
-  const msg=$("save-msg");
-  const title=$("title").value.trim();
-  if(!title){
-    msg.className="msg err"; msg.textContent="제목을 입력하세요.";
-    toast("회차 제목을 입력해주세요.","err");
-    // 제목 칸으로 스크롤 + 포커스
-    $("title").scrollIntoView({behavior:"smooth",block:"center"});
-    $("title").focus();
-    return;
-  }
-  if(!parsed.length){ toast("저장할 문항이 없습니다. 먼저 PDF를 분석하세요.","err"); return; }
-
-  msg.className="msg"; msg.textContent="저장 중...";
-  toast("저장 중...");
-  try{
-    const exam={
-      round_no:+$("round_no").value,
-      title,
-      subject:$("subject").value.trim()||"English",
-      published:$("published").value==="true"
-    };
-    const { data, error } = await sb.rpc("admin_save_exam",{
-      p_pass:ADMIN_PASS, p_exam:exam, p_questions:parsed
-    });
-    if(error) throw error;
-    msg.className="msg ok";
-    msg.textContent=`저장 완료! 문항 ${data.saved_questions}개 반영됨.`;
-    toast(`✅ 저장 완료 — ${exam.round_no}회차, 문항 ${data.saved_questions}개`,"ok");
-  }catch(e){ msg.className="msg err"; msg.textContent="저장 오류: "+e.message; toast("저장 오류: "+e.message,"err"); }
-});
-
-// ---------- 토스트 ----------
-let _toastTimer=null;
-function toast(text, kind){
-  const el=$("toast");
-  el.textContent=text;
-  el.className="toast show"+(kind?(" "+kind):"");
-  clearTimeout(_toastTimer);
-  _toastTimer=setTimeout(()=>{ el.className="toast"; }, 3000);
-}
-
-// ---------- 탭 전환 ----------
-document.querySelectorAll(".tab-btn").forEach(btn=>{
-  btn.addEventListener("click",()=>{
-    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach(p=>p.classList.add("hidden"));
-    btn.classList.add("active");
-    $(btn.dataset.tab).classList.remove("hidden");
-    if(btn.dataset.tab==="tab-manage") loadExamList();
-  });
-});
-
-// ---------- 회차 관리 ----------
-$("btn-refresh-exams").addEventListener("click", loadExamList);
-
-async function loadExamList(){
-  const box=$("exam-list"); box.textContent="불러오는 중...";
-  try{
-    const { data, error } = await sb.rpc("admin_list_exams",{ p_pass:ADMIN_PASS });
-    if(error) throw error;
-    if(!data || !data.length){ box.textContent="저장된 회차가 없습니다."; return; }
-    box.innerHTML="";
-    data.forEach(e=>{
-      const row=document.createElement("div");
-      row.className="exam-row";
-      row.innerHTML=
-        `<span class="rno">${e.round_no}회</span>
-         <span class="etitle">${esc(e.title||"")}</span>
-         <span class="badge ${e.published?"on":"off"}">${e.published?"공개":"비공개"}</span>
-         <button class="btn-ghost" data-act="toggle" data-round="${e.round_no}" data-pub="${e.published}" style="padding:4px 10px;font-size:12px">
-           ${e.published?"비공개로":"공개로"}</button>
-         <button class="btn-accent" data-act="del" data-round="${e.round_no}" data-title="${esc(e.title||"")}" style="padding:4px 10px;font-size:12px">삭제</button>`;
-      box.appendChild(row);
-    });
-    // 버튼 동작
-    box.querySelectorAll("[data-act]").forEach(b=>{
-      b.addEventListener("click", ()=>handleExamAction(b));
-    });
-  }catch(err){ box.textContent="오류: "+err.message; toast("목록 오류: "+err.message,"err"); }
-}
-
-async function handleExamAction(b){
-  const round=+b.dataset.round;
-  if(b.dataset.act==="toggle"){
-    const newPub = b.dataset.pub!=="true";
-    try{
-      const { error } = await sb.rpc("admin_set_published",{ p_pass:ADMIN_PASS, p_round_no:round, p_published:newPub });
-      if(error) throw error;
-      toast(`${round}회차 ${newPub?"공개":"비공개"}로 변경됨`,"ok");
-      loadExamList();
-    }catch(e){ toast("변경 오류: "+e.message,"err"); }
-  } else if(b.dataset.act==="del"){
-    const title=b.dataset.title||"";
-    if(!confirm(`${round}회차 "${title}" 을(를) 삭제할까요?\n해당 회차의 문제도 모두 삭제됩니다. 되돌릴 수 없습니다.`)) return;
-    try{
-      const { data, error } = await sb.rpc("admin_delete_exam",{ p_pass:ADMIN_PASS, p_round_no:round });
-      if(error) throw error;
-      toast(`🗑 ${round}회차 삭제됨 (문항 ${data.deleted_questions}개)`,"ok");
-      loadExamList();
-    }catch(e){ toast("삭제 오류: "+e.message,"err"); }
-  }
-}
-
-</script>
+<script src="app.js"></script>
 </body>
 </html>
