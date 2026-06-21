@@ -159,18 +159,48 @@ async function pdfToText(file){
 function parseAnswerText(t){
   const circ = {'①':'1','②':'2','③':'3','④':'4','⑤':'5'};
   const answers={}, explanations={};
-  let m; const ansRe=/(\d{1,2})\.\s*([①②③④⑤])/g;
-  while((m=ansRe.exec(t))!==null) answers[+m[1]]=circ[m[2]];
-  const blocks = t.split(/\n(?=\d{1,2}\.\s*\[출제\s*의도\])/);
+
+  // (1) 정답표는 보통 첫 해설([출제의도]) 이전에 모여 있다.
+  //     그 영역에서만 정답을 뽑아 본문 속 "①이다" 오인식을 막는다.
+  const firstExp = t.search(/\d{1,2}\s*[\.．]?\s*\[출제\s*의도\]/);
+  const headerRegion = firstExp > 0 ? t.slice(0, firstExp) : t;
+  let m; const ansRe=/(\d{1,2})\s*[\.．]?\s*([①②③④⑤])/g;
+  while((m=ansRe.exec(headerRegion))!==null){
+    const no=+m[1];
+    if(no>=1 && no<=45 && !(no in answers)) answers[no]=circ[m[2]];
+  }
+
+  // (2) 해설 추출: "[출제의도]" 또는 "[출제 의도]" 경계로 블록 분리
+  const blocks = t.split(/\n(?=\d{1,2}\s*[\.．]?\s*\[출제\s*의도\])/);
   for(const b of blocks){
-    const h=b.match(/^(\d{1,2})\.\s*\[출제\s*의도\]/); if(!h) continue;
-    const no=+h[1]; const pul=b.split(/\[풀이\]/)[1];
-    if(pul){
-      let ex=pul.split(/\[Words and Phrases\]/)[0].trim().replace(/\s+/g,' ');
-      explanations[no]=ex;
+    const h=b.match(/^(\d{1,2})\s*[\.．]?\s*\[출제\s*의도\]/); if(!h) continue;
+    const no=+h[1];
+    let body = b.split(/\[풀이\]/)[1];           // [풀이] 우선
+    if(!body) body = b.replace(/^[^\]]*\]/, ''); // 없으면 [출제의도] 뒤 전체
+    if(body){
+      let ex=body.split(/\[Words and Phrases\]|\[어휘\]/)[0].trim().replace(/\s+/g,' ');
+      if(ex) explanations[no]=ex;
     }
   }
   return {answers, explanations};
+}
+
+// 지문 덩어리에서 ①~⑤ 선택지를 떼어낸다.
+function splitChoices(seg){
+  // 동그라미 번호 위치를 찾는다
+  const marks=['①','②','③','④','⑤'];
+  const idxs=marks.map(s=>seg.indexOf(s));
+  // ①~⑤가 순서대로 모두 존재해야 선택지로 간주
+  if(idxs.some(i=>i<0)) return {passage:seg.trim(), choices:[]};
+  for(let i=1;i<5;i++){ if(idxs[i]<idxs[i-1]) return {passage:seg.trim(), choices:[]}; }
+  const passage = seg.slice(0, idxs[0]).trim();
+  const choices=[];
+  for(let i=0;i<5;i++){
+    const start=idxs[i]+1; // 동그라미 기호 다음부터
+    const end = i<4 ? idxs[i+1] : seg.length;
+    choices.push(seg.slice(start,end).trim());
+  }
+  return {passage, choices};
 }
 
 // ---------- 문제지 파싱(지문) ----------
@@ -216,10 +246,12 @@ $("btn-parse").addEventListener("click", async ()=>{
 
     parsed=[];
     for(let n=from;n<=to;n++){
+      const rawSeg = qMap[n]||"";
+      const sp = splitChoices(rawSeg);
       parsed.push({
         q_no:n, q_type:"mc",
-        passage:qMap[n]||"",
-        choices:[],
+        passage:sp.passage,
+        choices:sp.choices,
         answer:answers[n]||"",
         points:defaultPoints(n),
         explanation:explanations[n]||""
